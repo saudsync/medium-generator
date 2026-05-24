@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Medium Article Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --card: #16161f;
+    --border: #2a2a3a;
+    --accent: #e8c547;
+    --accent2: #4ecca3;
+    --text: #e8e8f0;
+    --muted: #7070a0;
+    --danger: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(232,197,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,197,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    padding: 40px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  .header-inner { display: flex; align-items: center; gap: 16px; }
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: var(--accent);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  h1 span { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+  /* API Key bar */
+  .api-bar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .api-bar label { font-size: 13px; color: var(--muted); white-space: nowrap; font-weight: 500; }
+  .api-bar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .api-bar input:focus { border-color: var(--accent); }
+  .api-status {
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .api-status.ok { background: rgba(78,204,163,0.15); color: var(--accent2); }
+  .api-status.empty { background: rgba(112,112,160,0.15); color: var(--muted); }
+
+  /* Controls */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .control-group {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+  }
+  .control-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+  select, .topic-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  select:focus, .topic-input:focus { border-color: var(--accent); }
+  select option { background: var(--card); }
+
+  /* Custom topic */
+  .custom-topic-row {
+    margin-top: 12px;
+    display: none;
+  }
+  .custom-topic-row.visible { display: block; }
+
+  /* Generate button */
+  .generate-btn {
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 32px;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .generate-btn:hover:not(:disabled) {
+    background: #f0d060;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 30px rgba(232,197,71,0.25);
+  }
+  .generate-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: #0a0a0f;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .generate-btn.loading .spinner { display: block; }
+  .generate-btn.loading .btn-text { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Progress */
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 28px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-bar.visible { display: block; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* Article output */
+  .articles-section { display: none; }
+  .articles-section.visible { display: block; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .count-badge {
+    background: rgba(232,197,71,0.15);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  .article-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 24px;
+    overflow: hidden;
+    animation: fadeUp 0.4s ease forwards;
+    opacity: 0;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .article-header {
+    padding: 22px 26px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .article-meta {}
+  .article-number {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .article-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--text);
+  }
+  .article-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .tag {
+    background: rgba(78,204,163,0.1);
+    color: var(--accent2);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .article-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .btn-copy, .btn-toggle {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-copy {
+    background: var(--accent);
+    color: #0a0a0f;
+  }
+  .btn-copy:hover { background: #f0d060; }
+  .btn-copy.copied {
+    background: var(--accent2);
+    color: #0a0a0f;
+  }
+  .btn-toggle {
+    background: var(--surface);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-toggle:hover { color: var(--text); border-color: var(--muted); }
+
+  /* Article body */
+  .article-body {
+    padding: 28px 26px;
+    display: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .article-body.visible { display: block; }
+  .article-content {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #c8c8d8;
+  }
+  .article-content h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 28px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .article-content p { margin-bottom: 16px; }
+  .article-content strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .article-content em { color: var(--accent2); font-style: italic; }
+  .article-content blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 12px 20px;
+    margin: 20px 0;
+    background: rgba(232,197,71,0.05);
+    border-radius: 0 8px 8px 0;
+    color: var(--text);
+    font-style: italic;
+  }
+  .article-content ul { padding-left: 24px; margin-bottom: 16px; }
+  .article-content li { margin-bottom: 8px; }
+
+  /* Plain text copy area */
+  .copy-area {
+    padding: 20px 26px;
+    background: var(--surface);
+  }
+  .copy-area-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+  textarea.plain-text {
+    width: 100%;
+    height: 160px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 12px;
+    resize: vertical;
+    outline: none;
+    line-height: 1.6;
+  }
+
+  /* Error */
+  .error-box {
+    background: rgba(255,107,107,0.1);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    color: var(--danger);
+    font-size: 14px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .error-box.visible { display: block; }
+
+  /* Instructions */
+  .how-to {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 28px;
+  }
+  .how-to h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 14px;
+  }
+  .steps { display: flex; gap: 0; flex-wrap: wrap; }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 160px;
+    padding: 8px 0;
+  }
+  .step-num {
+    width: 26px; height: 26px;
+    background: rgba(232,197,71,0.15);
+    color: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .step-text { font-size: 13px; color: var(--muted); }
+  .step-arrow { color: var(--border); margin: 0 4px; }
+
+  @media (max-width: 600px) {
+    .controls { grid-template-columns: 1fr; }
+    .api-bar { flex-wrap: wrap; }
+    .article-header { flex-direction: column; }
+    .article-actions { width: 100%; }
+    .btn-copy, .btn-toggle { flex: 1; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-inner">
+      <div class="logo-icon">✍️</div>
+      <div>
+        <h1>Medium <span>Article</span> Generator</h1>
+        <div class="tagline">AI-powered · Groq API · Paste & Publish</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- API Key -->
+  <div class="api-bar">
+    <label>🔑 Groq API Key</label>
+    <input type="password" id="apiKey" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx" oninput="updateApiStatus()"/>
+    <span class="api-status empty" id="apiStatus">Not set</span>
+  </div>
+
+  <!-- How to use -->
+  <div class="how-to">
+    <h3>How to use</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Paste your Groq API key above</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">Pick a topic & generate</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">Copy the article</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">Paste on Medium & publish</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <label>Topic Category</label>
+      <select id="topicSelect" onchange="handleTopicChange()">
+        <option value="random">🎲 Random (auto-pick)</option>
+        <option value="ai">🤖 Artificial Intelligence</option>
+        <option value="science">🔬 Scientific Discoveries</option>
+        <option value="invention">💡 Inventions & Innovation</option>
+        <option value="algorithm">⚙️ Algorithms & Problem Solving</option>
+        <option value="ml">🧠 Machine Learning & Deep Learning</option>
+        <option value="quantum">⚛️ Quantum Computing</option>
+        <option value="biotech">🧬 Biotechnology & Genetics</option>
+        <option value="space">🚀 Space & Astronomy</option>
+        <option value="robotics">🦾 Robotics & Automation</option>
+        <option value="cyber">🔐 Cybersecurity</option>
+        <option value="blockchain">🔗 Blockchain & Web3</option>
+        <option value="neuro">🧩 Neuroscience & Brain Tech</option>
+        <option value="energy">⚡ Renewable Energy</option>
+        <option value="nano">🔩 Nanotechnology</option>
+        <option value="custom">✏️ Custom Topic...</option>
+      </select>
+      <div class="custom-topic-row" id="customRow">
+        <input class="topic-input" id="customTopic" type="text" placeholder="e.g. The future of brain implants"/>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Number of Articles</label>
+      <select id="countSelect">
+        <option value="1">1 article</option>
+        <option value="2">2 articles</option>
+        <option value="3" selected>3 articles</option>
+        <option value="5">5 articles</option>
+        <option value="10">10 articles</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Generate button -->
+  <button class="generate-btn" id="generateBtn" onclick="generateArticles()">
+    <div class="spinner"></div>
+    <span class="btn-text">⚡ Generate Articles</span>
+  </button>
+
+  <!-- Progress -->
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- Articles output -->
+  <div class="articles-section" id="articlesSection">
+    <div class="section-header">
+      <div class="section-title">Generated Articles</div>
+      <div class="count-badge" id="countBadge">0 ready</div>
+    </div>
+    <div id="articlesList"></div>
+  </div>
+
+</div>
+
+<script>
+const TOPICS = {
+  ai:         "Artificial Intelligence advancements and breakthroughs in 2025",
+  science:    "Cutting-edge scientific discoveries reshaping our understanding of the world",
+  invention:  "Revolutionary inventions that are changing the world right now",
+  algorithm:  "Advanced algorithm design and strategic problem-solving in computer science",
+  ml:         "Machine learning and deep learning techniques pushing the boundaries of AI",
+  quantum:    "Quantum computing and its real-world applications becoming reality",
+  biotech:    "Biotechnology and genetic engineering breakthroughs transforming medicine",
+  space:      "Space exploration and astronomy discoveries revealing the universe's secrets",
+  robotics:   "Robotics and automation reshaping modern industry and daily life",
+  cyber:      "Cybersecurity trends and ethical hacking strategies in the age of AI",
+  blockchain: "Blockchain and decentralized technology innovations beyond cryptocurrency",
+  neuro:      "Neuroscience and brain-computer interfaces unlocking human potential",
+  energy:     "Renewable energy technology breakthroughs accelerating the green transition",
+  nano:       "Nanotechnology and materials science advances at the atomic scale",
+  random:     null,
+};
+
+const ALL_TOPICS = Object.values(TOPICS).filter(Boolean);
+let articleCount = 0;
+
+function updateApiStatus() {
+  const key = document.getElementById('apiKey').value.trim();
+  const status = document.getElementById('apiStatus');
+  if (key.startsWith('gsk_') && key.length > 20) {
+    status.textContent = '✓ Ready';
+    status.className = 'api-status ok';
+  } else {
+    status.textContent = 'Not set';
+    status.className = 'api-status empty';
+  }
+}
+
+function handleTopicChange() {
+  const val = document.getElementById('topicSelect').value;
+  const row = document.getElementById('customRow');
+  row.classList.toggle('visible', val === 'custom');
+}
+
+function getTopicString(val) {
+  if (val === 'custom') {
+    return document.getElementById('customTopic').value.trim() || 'The future of technology';
+  }
+  if (val === 'random') {
+    return ALL_TOPICS[Math.floor(Math.random() * ALL_TOPICS.length)];
+  }
+  return TOPICS[val];
+}
+
+function setProgress(pct) {
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = '⚠️ ' + msg;
+  box.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('errorBox').classList.remove('visible');
+}
+
+async function callGroq(apiKey, topic) {
+  const prompt = `You are a world-class technology and science writer for publications like MIT Technology Review and Wired.
+
+Write a short, punchy Medium article on:
+TOPIC: ${topic}
+
+LENGTH: strictly 400–500 words total. Do not exceed 500 words.
+
+STRUCTURE — use exactly this order:
+1. Title (as <h1>)
+2. Subtitle (as <h3>, one sentence that hooks the reader)
+3. Body (as paragraphs and sections below)
+
+HTML FORMATTING RULES — follow strictly:
+- <h1> for the title only
+- <h3> for the subtitle only
+- <h2> for 2 section headings inside the body
+- <p> for paragraphs
+- <ol><li> for any numbered lists (never use asterisks * or dashes -)
+- <ul><li> for any bullet point lists (never use asterisks * or dashes -)
+- <strong> around key facts and important terms
+- <blockquote> for one powerful insight
+- NEVER use asterisks (*) or dashes (-) as list markers anywhere
+
+CONTENT RULES:
+- Open with one gripping sentence — a bold fact or surprising claim
+- 2 short sections with a heading each
+- One numbered or bulleted list (3–4 items max) using proper <ol> or <ul> tags
+- End with one forward-looking sentence as a conclusion
+- Sound human, confident, and clear — no filler phrases
+
+After the HTML, add:
+---META---
+TITLE: [same as h1 title]
+TAGS: [tag1, tag2, tag3, tag4, tag5]
+---END---
+
+Write now:`;
+
+  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 1200,
+      temperature: 0.8,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API error ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const raw = data.choices[0].message.content;
+
+  // Parse meta
+  let html = raw, title = topic.substring(0, 70), tags = ['Technology', 'AI', 'Science', 'Innovation', 'Future'];
+
+  if (raw.includes('---META---') && raw.includes('---END---')) {
+    const parts = raw.split('---META---');
+    html = parts[0].trim();
+    const meta = parts[1].split('---END---')[0];
+    const titleMatch = meta.match(/TITLE:\s*(.+)/);
+    const tagsMatch  = meta.match(/TAGS:\s*(.+)/);
+    if (titleMatch) title = titleMatch[1].trim();
+    if (tagsMatch)  tags  = tagsMatch[1].split(',').map(t => t.trim()).filter(Boolean).slice(0, 5);
+  }
+
+  // Strip any ```html fences
+  html = html.replace(/^```html\n?/i, '').replace(/\n?```$/i, '').trim();
+
+  return { title, tags, html, topic };
+}
+
+function htmlToPlainText(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  let text = tmp.innerText;
+  text = text.replace(/^\s*\*+\s*/gm, '');
+  text = text.replace(/^\s*-\s+/gm, '');
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+  return text;
+}
+
+function addArticleCard(article, index) {
+  articleCount++;
+  const section = document.getElementById('articlesSection');
+  section.classList.add('visible');
+  document.getElementById('countBadge').textContent = articleCount + ' ready';
+
+  const card = document.createElement('div');
+  card.className = 'article-card';
+  card.style.animationDelay = (index * 0.1) + 's';
+
+  const tagsHtml = article.tags.map(t => `<span class="tag">${t}</span>`).join('');
+  const plain = htmlToPlainText(article.html);
+
+  card.innerHTML = `
+    <div class="article-header">
+      <div class="article-meta">
+        <div class="article-number">Article ${articleCount}</div>
+        <div class="article-title">${article.title}</div>
+        <div class="article-tags">${tagsHtml}</div>
+      </div>
+      <div class="article-actions">
+        <button class="btn-toggle" onclick="toggleBody(this)">👁 Preview</button>
+        <button class="btn-copy" onclick="copyArticle(this, \`${encodeURIComponent(plain)}\`)">📋 Copy</button>
+      </div>
+    </div>
+    <div class="article-body">
+      <div class="article-content">${article.html}</div>
+    </div>
+    <div class="copy-area">
+      <div class="copy-area-label">Plain text — paste directly into Medium</div>
+      <textarea class="plain-text" readonly>${plain}</textarea>
+    </div>
+  `;
+
+  document.getElementById('articlesList').appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleBody(btn) {
+  const body = btn.closest('.article-card').querySelector('.article-body');
+  const visible = body.classList.toggle('visible');
+  btn.textContent = visible ? '🙈 Hide' : '👁 Preview';
+}
+
+function copyArticle(btn, encoded) {
+  const text = decodeURIComponent(encoded);
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✅ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 Copy';
+      btn.classList.remove('copied');
+    }, 2500);
+  });
+}
+
+async function generateArticles() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey || !apiKey.startsWith('gsk_')) {
+    showError('Please enter a valid Groq API key (starts with gsk_). Get one free at console.groq.com');
+    return;
+  }
+
+  const count = parseInt(document.getElementById('countSelect').value);
+  const topicVal = document.getElementById('topicSelect').value;
+
+  hideError();
+  articleCount = 0;
+  document.getElementById('articlesList').innerHTML = '';
+  document.getElementById('articlesSection').classList.remove('visible');
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  const progressBar = document.getElementById('progressBar');
+  progressBar.classList.add('visible');
+  setProgress(5);
+
+  for (let i = 0; i < count; i++) {
+    const topic = getTopicString(topicVal);
+    try {
+      setProgress(5 + ((i / count) * 85));
+      const article = await callGroq(apiKey, topic);
+      addArticleCard(article, i);
+      // Small delay between requests to be kind to the API
+      if (i < count - 1) await new Promise(r => setTimeout(r, 1500));
+    } catch (err) {
+      showError(`Article ${i+1} failed: ${err.message}`);
+      break;
+    }
+  }
+
+  setProgress(100);
+  setTimeout(() => {
+    progressBar.classList.remove('visible');
+    setProgress(0);
+  }, 800);
+
+  btn.disabled = false;
+  btn.classList.remove('loading');
+}
+</script>
+</body>
+</html>
